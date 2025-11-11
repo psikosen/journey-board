@@ -1,0 +1,23 @@
+{
+  "name": "journey-board",
+  "version": "0.1.0",
+  "description": "Offline-first SOP agent tooling for browser-based workflow discovery.",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "test": "node --test"
+  },
+  "keywords": [
+    "sop",
+    "webassembly",
+    "process-mining",
+    "webgpu",
+    "chrome-extension"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "eslint": "^8.57.0"
+  }
+}

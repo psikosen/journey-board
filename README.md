@@ -30,6 +30,33 @@ project-root/
 ├── task.md
 └── project-manager/
     └── architecture.md
+└── extension/
+    ├── manifest.json
+    ├── sw.js
+    ├── offscreen.html
+    ├── offscreen.js
+    ├── content.js
+    ├── popup.{html,js,css}
+    ├── lib/
+    │   ├── adaptiveCadence.js
+    │   ├── egressGuard.js
+    │   └── logger.js
+    └── icons/
+        ├── README.md
+        └── icon*.png (generated via `./build.sh`)
 ```
 
 As development proceeds, expand the structure with application source, tests, model assets, and documentation while preserving privacy-first, offline-only defaults.
+
+## Extension Quickstart
+
+1. Visit `chrome://extensions` and enable developer mode.
+2. Use "Load unpacked" to select the `extension/` directory.
+3. Open the popup and start capture on a demo site to exercise the HUD, redact overlay, and adaptive sampler.
+4. Inspect captured DOM events and frame observations via the `chrome://extensions` background page to validate offline processing.
+
+The extension enforces zero egress through CSP hardening and runtime guards that disable `fetch` and `XMLHttpRequest`. Sampling cadence adapts between 2–15 seconds using the shared `AdaptiveFrameScheduler` utility, with unit coverage in `tests/adaptiveCadence.test.js`.
+
+## Reconstructing Binary Assets
+
+Binary artifacts (such as the extension icons) are intentionally excluded from version control. Run `./build.sh` from the repository root to regenerate the required PNGs inside `extension/icons/` before loading the extension.

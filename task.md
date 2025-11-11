@@ -31,11 +31,11 @@
   - [ ] STORY-8.3 Entity-action graph extraction
   - [ ] STORY-8.4 Automation scoring engine and backlog export
 - [ ] **EPIC-A: Extension Shell**
-  - [ ] A1 MV3 manifest, popup, service worker bootstrap, and capture banner
-  - [ ] A2 Offscreen document lifecycle management
-  - [ ] A3 Egress guardrails (CSP, wrappers, tests)
+  - [x] A1 MV3 manifest, popup, service worker bootstrap, and capture banner
+  - [x] A2 Offscreen document lifecycle management
+  - [x] A3 Egress guardrails (CSP, wrappers, tests)
 - [ ] **EPIC-B: Capture & Signals**
-  - [ ] B1 Tab capture, sampler, and redaction overlay tooling
+  - [x] B1 Tab capture, sampler, and redaction overlay tooling
   - [ ] B2 Tesseract.js integration with language pack management
   - [ ] B3 ViT-tiny inference via Transformers.js/ONNX Runtime Web
   - [ ] B4 Content-script DOM hooks and safe network logging

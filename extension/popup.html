@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SOP Agent</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>SOP Agent</h1>
+        <p class="status" id="status">Idle</p>
+      </header>
+      <section class="controls">
+        <button id="start" class="primary">Start Capture</button>
+        <button id="stop" class="secondary" disabled>Stop Capture</button>
+      </section>
+      <section class="options">
+        <label>
+          <input type="checkbox" id="hudToggle" />
+          Show on-page HUD
+        </label>
+        <label>
+          <input type="checkbox" id="redactToggle" />
+          Enable redact overlay on start
+        </label>
+      </section>
+      <footer>
+        <p>
+          Processing stays on-device. Review exports via the Events pane to verify data before
+          downloading.
+        </p>
+      </footer>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
