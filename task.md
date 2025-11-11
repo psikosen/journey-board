@@ -1,0 +1,53 @@
+# Task Tracker
+
+- [x] Assess initial repository state and gather requirements
+- [x] Document architecture blueprint for Client-Side SOP Agent MVP
+- [x] Align README with new project scope and reference architecture docs
+- [x] Establish initial development roadmap alignment artifacts
+
+## Upcoming Epics & Stories
+
+- [ ] **EPIC-1: Capture & Privacy**
+  - [ ] STORY-1.1 Consent flow and persistent capture banner
+  - [ ] STORY-1.2 Redaction overlay with blur/mask persistence
+  - [ ] STORY-1.3 Adaptive frame sampler with performance guardrails
+- [ ] **EPIC-2: Vision & OCR**
+  - [ ] STORY-2.1 Integrate quantized ViT/CLIP vision classifier
+  - [ ] STORY-2.2 Tesseract.js regional OCR with de-duplication
+- [ ] **EPIC-3: Event Fusion**
+  - [ ] STORY-3.1 Event schema implementation and de-duplication window
+- [ ] **EPIC-4: Scribe LLM**
+  - [ ] STORY-4.1 WebLLM integration for streaming session notes
+- [ ] **EPIC-5: Process Miner**
+  - [ ] STORY-5.1 Prefix-tree miner with support/duration analytics
+- [ ] **EPIC-6: SOP Builder & Export**
+  - [ ] STORY-6.1 SOP Markdown/YAML generator and editor workflow
+  - [ ] STORY-6.2 BPMN 2.0 export (post-MVP)
+- [ ] **EPIC-7: UX**
+  - [ ] STORY-7.1 HUD, Events Pane, and Processes Pane implementation
+- [ ] **EPIC-8: Domain Discovery**
+  - [ ] STORY-8.1 OCR corpus and TF-IDF term extraction
+  - [ ] STORY-8.2 Page clustering and labeling pipeline
+  - [ ] STORY-8.3 Entity-action graph extraction
+  - [ ] STORY-8.4 Automation scoring engine and backlog export
+- [ ] **EPIC-A: Extension Shell**
+  - [ ] A1 MV3 manifest, popup, service worker bootstrap, and capture banner
+  - [ ] A2 Offscreen document lifecycle management
+  - [ ] A3 Egress guardrails (CSP, wrappers, tests)
+- [ ] **EPIC-B: Capture & Signals**
+  - [ ] B1 Tab capture, sampler, and redaction overlay tooling
+  - [ ] B2 Tesseract.js integration with language pack management
+  - [ ] B3 ViT-tiny inference via Transformers.js/ONNX Runtime Web
+  - [ ] B4 Content-script DOM hooks and safe network logging
+- [ ] **EPIC-C: Mining & Outputs**
+  - [ ] C1 TF-IDF corpus and page clustering storage
+  - [ ] C2 Event fusion and IndexedDB JSONL persistence
+  - [ ] C3 Prefix-tree miner and candidate process surfacing
+  - [ ] C4 Scribe summarizer and SOP generator wiring
+  - [ ] C5 Automation scoring and backlog JSON export
+  - [ ] C6 ZIP export with hash manifest
+  - [ ] C7 Export insights and logs packaging
+- [ ] **EPIC-D: QA & Hardening**
+  - [ ] D1 End-to-end tests across demo sites with redaction verification
+  - [ ] D2 Performance profiling with WebGPU/WASM fallbacks
+  - [ ] D3 Blocklist handling and failure UX polish

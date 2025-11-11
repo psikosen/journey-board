@@ -1,214 +1,35 @@
-# Neural Network Training Game
+# Client-Side SOP Agent
 
-An educational Love2D game that teaches neural network concepts through interactive visualization and hands-on training.
+An offline-first WebAssembly/WebGPU agent that observes consented browser sessions, mines workflow patterns, and generates Standard Operating Procedures (SOPs) plus automation opportunities entirely on-device.
 
 ## Overview
+- **Privacy-first capture** with explicit consent, redaction overlays, and zero network egress by default.
+- **Adaptive perception stack** combining tab video sampling, quantized vision models, selective OCR, and optional first-party SDK events.
+- **Semantic event fusion** pipelines observations into structured JSONL streams ready for process mining and summarization.
+- **On-device intelligence** leverages WebLLM, prefix-tree mining, and heuristics to propose canonical processes, SOPs, and automation backlogs.
+- **Local exports** provide Markdown/YAML SOPs, business profiles, and automation reports without leaving the user’s machine.
 
-This game provides an interactive way to understand how neural networks work, specifically focusing on:
-- Forward propagation
-- Backpropagation
-- Gradient descent
-- Activation functions (ReLU and Softmax)
-- Matrix operations
-- Weight updates
-- Loss calculation
+## Architecture Blueprint
+The detailed architecture, data schemas, runtime considerations, and roadmap are documented in [`project-manager/architecture.md`](project-manager/architecture.md). Highlights include:
 
-The game uses the MNIST digit recognition task as its core example, allowing players to draw digits and watch the network learn to recognize them.
+- Dual operating modes: zero-code screenshare capture and optional first-party SDK with semantic beacons.
+- Frame sampler targeting ≤75 ms/frame processing (WebGPU) with OCR dedupe and quantized ViT/CLIP-mini classifiers.
+- WebLLM (Llama-3.1) Scribe for session logs, prefix-tree miner for process candidates, and SOP builder exporting Markdown/YAML/BPMN-ready assets.
+- Privacy controls such as redaction overlays, regex masking, offline guardrails, and panic erase workflows.
+- Extension roadmap for a zero-egress MV3 Chrome extension with offscreen document processing.
 
-## Features
+## Getting Started
+1. Review the [architecture blueprint](project-manager/architecture.md) for component responsibilities and performance budgets.
+2. Use [`task.md`](task.md) to track progress across epics and stories as implementation begins.
+3. Scaffold the frontend stack (Vite + TypeScript) with WebLLM and Transformers.js integrations to initiate EPIC-1 through EPIC-3.
 
-### Core Concepts Taught
-- **Neuron Basics**: Visual representation of how neurons process inputs with weights and biases
-- **Layer Architecture**: Interactive visualization of input, hidden, and output layers
-- **Activation Functions**: 
-  - ReLU (Rectified Linear Unit) for hidden layers
-  - Softmax for output probability distribution
-- **Loss Measurement**: Cross-entropy loss visualization
-- **Backpropagation**: Step-by-step gradient flow visualization
-- **Gradient Descent**: Real-time weight updates with adjustable learning rate
-
-### Interactive Elements
-- **Drawing Canvas**: Draw digits (0-9) and see real-time predictions
-- **Network Visualization**: Watch signals flow through the network
-- **Weight Visualization**: See connection strengths between neurons
-- **Training Controls**: Start/stop training, step through samples
-- **Hyperparameter Tuning**: Adjust learning rate in real-time
-- **Metrics Dashboard**: Track loss and accuracy over time
-
-## Technical Implementation
-
-### Pure Lua/Love2D Implementation
-The entire neural network is implemented from scratch in pure Lua:
-- No external machine learning libraries
-- Raw matrix operations
-- Mathematical functions implemented directly
-
-### Architecture
-- **Input Layer**: 64 neurons (8x8 pixel grid)
-- **Hidden Layer**: 16 neurons with ReLU activation
-- **Output Layer**: 10 neurons (digits 0-9) with Softmax activation
-
-### Files Structure
+## Repository Structure
 ```
-ai_project/
-├── main.lua           # Main game loop and UI
-├── neuralnetwork.lua  # Neural network implementation
-├── matrix.lua         # Matrix operations library
-├── mnist.lua          # MNIST data handling
-├── conf.lua           # Love2D configuration
+project-root/
+├── README.md
+├── task.md
 └── project-manager/
-    └── execution-plan.md  # Development plan
+    └── architecture.md
 ```
 
-## Installation & Running
-
-### Prerequisites
-1. Install Love2D (version 11.4 or later):
-   - macOS: `brew install love`
-   - Or download from: https://love2d.org/
-
-### Running the Game
-```bash
-cd /Users/raymondgonzalez/ai_project
-love .
-```
-
-Or drag the project folder onto the Love2D application.
-
-## How to Play
-
-### Main Menu
-- Press **SPACE** to start the game
-- Press **ESC** to return to menu or quit
-
-### Training Mode
-
-#### Drawing
-- Click and drag on the canvas to draw digits
-- The network will predict what digit you drew in real-time
-
-#### Controls
-- **Train Button**: Start/stop automatic training
-- **Step Button**: Train on one sample
-- **Reset Button**: Reset the neural network
-- **Clear Button**: Clear the drawing canvas
-
-#### Keyboard Shortcuts
-- **Space**: Toggle training
-- **C**: Clear canvas
-- **R**: Reset network
-- **T**: Single training step
-- **0-9**: Load preset digit patterns
-- **ESC**: Return to menu
-
-#### Adjustable Parameters
-- **Learning Rate Slider**: Adjust how quickly the network learns (0.0001 - 0.1)
-- **Visualization Toggles**: Show/hide weights and gradients
-
-## Educational Value
-
-### Visual Learning
-- See how data flows through the network
-- Watch weights change during training
-- Observe activation patterns in neurons
-- Track loss reduction over epochs
-
-### Hands-On Experience
-- Draw your own training data
-- Experiment with hyperparameters
-- See immediate effects of changes
-- Understand why networks fail or succeed
-
-### Mathematical Understanding
-The game visualizes key equations:
-- Forward pass: `z = Wx + b`, `a = activation(z)`
-- Loss: `L = -Σ(y_true * log(y_pred))`
-- Backprop: `∂L/∂W = ∂L/∂z * ∂z/∂W`
-- Weight update: `W_new = W_old - α * ∂L/∂W`
-
-## Key Concepts Explained
-
-### ReLU Activation
-```lua
-f(x) = max(0, x)
-```
-Introduces non-linearity while being computationally efficient.
-
-### Softmax Function
-```lua
-softmax(z_i) = exp(z_i) / Σ(exp(z_j))
-```
-Converts raw outputs to probability distribution.
-
-### Cross-Entropy Loss
-```lua
-L = -Σ(y_true * log(y_pred))
-```
-Measures difference between predicted and true distributions.
-
-### Gradient Descent
-```lua
-W = W - learning_rate * gradient
-```
-Iteratively adjusts weights to minimize loss.
-
-## Development Notes
-
-### Performance
-- Optimized for 60 FPS gameplay
-- Efficient matrix operations
-- Batch processing available
-
-### Extensibility
-The modular design allows for:
-- Adding more layers
-- Implementing different activation functions
-- Creating new training datasets
-- Adding more visualization modes
-
-## Future Enhancements
-
-Potential additions:
-- Convolutional layer visualization
-- Batch normalization
-- Dropout demonstration
-- Different optimization algorithms (Adam, RMSprop)
-- Save/load trained models
-- More complex datasets
-- Mini-batch training
-- Regularization techniques
-
-## Credits
-
-Based on concepts from the MNIST digit recognition task and inspired by neural network fundamentals. Pure Lua implementation for educational purposes.
-
-## License
-
-Educational project - free to use and modify for learning purposes.
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Game won't start**: Ensure Love2D is properly installed and you're in the correct directory
-2. **Low FPS**: Reduce training speed or disable weight visualization
-3. **Network not learning**: Try adjusting the learning rate or resetting the network
-4. **Canvas not responding**: Make sure you're clicking within the canvas boundaries
-
-### Debug Mode
-To enable console output for debugging, edit `conf.lua`:
-```lua
-t.console = true  -- Change from false to true
-```
-
-## Learning Resources
-
-To deepen your understanding:
-- Experiment with different network architectures
-- Try training on your own drawn digits
-- Observe how different learning rates affect convergence
-- Watch the gradients during backpropagation
-- Compare predictions before and after training
-
-This game demonstrates that neural networks are not black boxes but mathematical models that can be understood through visualization and interaction.
-# journey-board
+As development proceeds, expand the structure with application source, tests, model assets, and documentation while preserving privacy-first, offline-only defaults.
