@@ -10,14 +10,108 @@
   let isDrawing = false;
   let drawStart = null;
   let masks = [];
+  let consentBanner = null;
+  let consentResolver = null;
 
   const MASK_CLASS = 'sop-agent-redact-mask';
   const OVERLAY_ID = 'sop-agent-redact-overlay';
   const HUD_ID = 'sop-agent-hud';
+  const CONSENT_ID = 'sop-agent-consent-banner';
 
   function postToBackground(type, payload) {
     chrome.runtime.sendMessage({ type, payload }).catch((error) => {
       logger.error('postToBackground', 'messaging', 'Failed to send message', { error });
+    });
+  }
+
+  function removeConsentBanner() {
+    if (consentBanner) {
+      consentBanner.remove();
+      consentBanner = null;
+    }
+    if (consentResolver) {
+      consentResolver({ accepted: false, remember: false });
+      consentResolver = null;
+    }
+  }
+
+  function renderConsentBanner(details) {
+    removeConsentBanner();
+    consentBanner = document.createElement('div');
+    consentBanner.id = CONSENT_ID;
+    consentBanner.style.position = 'fixed';
+    consentBanner.style.top = '0';
+    consentBanner.style.left = '50%';
+    consentBanner.style.transform = 'translateX(-50%)';
+    consentBanner.style.zIndex = '2147483647';
+    consentBanner.style.background = 'rgba(10, 14, 28, 0.98)';
+    consentBanner.style.color = '#f1f5ff';
+    consentBanner.style.padding = '1rem 1.2rem';
+    consentBanner.style.margin = '1rem auto';
+    consentBanner.style.boxShadow = '0 18px 36px rgba(15, 23, 42, 0.28)';
+    consentBanner.style.borderRadius = '0.75rem';
+    consentBanner.style.width = 'min(480px, calc(100% - 2rem))';
+    consentBanner.style.fontFamily = "'Inter', system-ui, sans-serif";
+    consentBanner.style.border = '1px solid rgba(148, 163, 255, 0.35)';
+    let siteLabel = '';
+    if (details?.origin) {
+      try {
+        const Parser = globalThis.URL;
+        if (Parser) {
+          siteLabel = ` ${new Parser(details.origin).hostname}`;
+        }
+      } catch (error) {
+        logger.warn('renderConsentBanner', 'consent', 'Failed to parse origin for consent banner', { error });
+      }
+    }
+    consentBanner.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:0.5rem;">
+        <div>
+          <strong style="font-size:1rem;display:block;margin-bottom:0.25rem;">
+            Allow SOP Agent to capture this tab locally?
+          </strong>
+          <span style="font-size:0.85rem;opacity:0.85;">
+            Video, events, and OCR stay on this device. Redactions are applied before processing.
+            Granting consent enables adaptive capture for${siteLabel || ' this site'}.
+          </span>
+        </div>
+        <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.82rem;">
+          <input type="checkbox" id="sop-agent-consent-remember" checked style="accent-color:#6366f1;" />
+          Remember my choice for${siteLabel || ' this site'}
+        </label>
+        <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+          <button data-consent="decline" style="background:rgba(241,245,255,0.12);color:#e2e8f0;border:none;padding:0.45rem 0.9rem;border-radius:0.5rem;font-weight:600;cursor:pointer;">
+            Not now
+          </button>
+          <button data-consent="accept" style="background:#4f46e5;color:#f8fafc;border:none;padding:0.45rem 1rem;border-radius:0.6rem;font-weight:700;cursor:pointer;">
+            Allow capture
+          </button>
+        </div>
+      </div>
+    `;
+    consentBanner.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const action = target.dataset.consent;
+      if (!action) return;
+      const rememberCheckbox = consentBanner.querySelector('#sop-agent-consent-remember');
+      const remember = rememberCheckbox instanceof HTMLInputElement ? rememberCheckbox.checked : true;
+      const accepted = action === 'accept';
+      const resolver = consentResolver;
+      consentResolver = null;
+      consentBanner?.remove();
+      consentBanner = null;
+      if (resolver) {
+        resolver({ accepted, remember });
+      }
+    });
+    document.body.appendChild(consentBanner);
+  }
+
+  function requestConsent(details) {
+    return new Promise((resolve) => {
+      consentResolver = resolve;
+      renderConsentBanner(details);
     });
   }
 
@@ -338,7 +432,20 @@
     teardownOverlay();
     masks = [];
     unbindListeners();
+    removeConsentBanner();
     logger.info('stopCapture', 'lifecycle', 'Content capture stopped');
+  }
+
+  async function handleConsentRequest(payload) {
+    try {
+      const result = await requestConsent(payload ?? {});
+      logger.info('handleConsentRequest', 'consent', result.accepted ? 'Consent accepted' : 'Consent declined');
+      return { ok: true, accepted: result.accepted, remember: result.remember };
+    } catch (error) {
+      logger.error('handleConsentRequest', 'consent', 'Consent workflow failed', { error });
+      removeConsentBanner();
+      return { ok: false };
+    }
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -367,6 +474,14 @@
           ensureOverlay();
         }
         sendResponse({ ok: true });
+        return true;
+      case 'CONTENT_REQUEST_CONSENT':
+        handleConsentRequest(message.payload)
+          .then((result) => sendResponse(result))
+          .catch((error) => {
+            logger.error('CONTENT_REQUEST_CONSENT', 'consent', 'Consent handler error', { error });
+            sendResponse({ ok: false });
+          });
         return true;
       default:
         break;
