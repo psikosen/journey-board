@@ -7,10 +7,10 @@
 
 ## Upcoming Epics & Stories
 
-- [ ] **EPIC-1: Capture & Privacy**
-  - [ ] STORY-1.1 Consent flow and persistent capture banner
-  - [ ] STORY-1.2 Redaction overlay with blur/mask persistence
-  - [ ] STORY-1.3 Adaptive frame sampler with performance guardrails
+- [x] **EPIC-1: Capture & Privacy**
+  - [x] STORY-1.1 Consent flow and persistent capture banner
+  - [x] STORY-1.2 Redaction overlay with blur/mask persistence
+  - [x] STORY-1.3 Adaptive frame sampler with performance guardrails
 - [ ] **EPIC-2: Vision & OCR**
   - [ ] STORY-2.1 Integrate quantized ViT/CLIP vision classifier
   - [ ] STORY-2.2 Tesseract.js regional OCR with de-duplication

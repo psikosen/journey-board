@@ -25,3 +25,20 @@ test('AdaptiveFrameScheduler clamps invalid input', () => {
   const interval = scheduler.registerDelta(-5);
   assert.equal(interval, scheduler.currentInterval());
 });
+
+test('AdaptiveFrameScheduler limits interval step changes', () => {
+  const scheduler = new AdaptiveFrameScheduler({
+    baselineInterval: 6000,
+    minInterval: 2000,
+    maxInterval: 16000,
+    maxStepChange: 1000,
+  });
+  const initial = scheduler.currentInterval();
+  const aggressiveDrop = scheduler.registerDelta(1);
+  assert.ok(initial - aggressiveDrop <= 1000, 'interval change should respect maxStepChange constraint');
+  const aggressiveRise = scheduler.registerDelta(0);
+  assert.ok(
+    aggressiveRise - aggressiveDrop <= 1000,
+    'interval increase should respect maxStepChange constraint',
+  );
+});

@@ -8,6 +8,7 @@ export class AdaptiveFrameScheduler {
     this.motionThreshold = options.motionThreshold ?? 0.12;
     this.idleThreshold = options.idleThreshold ?? 0.02;
     this.smoothing = options.smoothing ?? 0.35;
+    this.maxStepChange = Math.max(options.maxStepChange ?? 2500, 0);
     this._smoothedDelta = 0;
     this._currentInterval = this.baselineInterval;
   }
@@ -16,7 +17,18 @@ export class AdaptiveFrameScheduler {
     const normalized = clamp(delta ?? 0, 0, 1);
     this._smoothedDelta =
       this.smoothing * normalized + (1 - this.smoothing) * this._smoothedDelta;
-    this._currentInterval = this.#computeInterval();
+    const target = clamp(this.#computeInterval(), this.minInterval, this.maxInterval);
+    if (this.maxStepChange > 0) {
+      const difference = target - this._currentInterval;
+      const limited = clamp(difference, -this.maxStepChange, this.maxStepChange);
+      this._currentInterval = clamp(
+        Math.round(this._currentInterval + limited),
+        this.minInterval,
+        this.maxInterval,
+      );
+    } else {
+      this._currentInterval = target;
+    }
     return this._currentInterval;
   }
 

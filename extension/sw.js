@@ -1,5 +1,12 @@
 import { createLogger } from './lib/logger.js';
 import { installEgressGuard } from './lib/egressGuard.js';
+import {
+  getGlobalPrefs,
+  getOriginPrefs,
+  saveOriginMasks,
+  setOriginConsent,
+  updateGlobalPrefs,
+} from './lib/preferences.js';
 
 installEgressGuard(globalThis);
 
@@ -15,7 +22,23 @@ const state = {
   tabTitle: '',
   events: [],
   observations: [],
+  origin: null,
+  prefsLoaded: false,
 };
+
+async function ensurePrefsLoaded() {
+  if (state.prefsLoaded) {
+    return;
+  }
+  try {
+    const prefs = await getGlobalPrefs();
+    state.hudEnabled = prefs.hudEnabled;
+    state.redactEnabled = prefs.redactEnabled;
+  } catch (error) {
+    logger.error('ensurePrefsLoaded', 'prefs', 'Failed to hydrate global preferences', { error });
+  }
+  state.prefsLoaded = true;
+}
 
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -51,6 +74,58 @@ function getPopupState() {
   };
 }
 
+function resolveOrigin(url) {
+  try {
+    const Parser = globalThis.URL;
+    return url && Parser ? new Parser(url).origin : null;
+  } catch (error) {
+    logger.warn('resolveOrigin', 'prefs', 'Failed to derive origin from tab URL', { error });
+    return null;
+  }
+}
+
+async function requestConsentFromContent(tabId, context) {
+  try {
+    const response = await sendToContent(tabId, {
+      type: 'CONTENT_REQUEST_CONSENT',
+      payload: context,
+    });
+    if (!response?.ok) {
+      return { accepted: false };
+    }
+    return {
+      accepted: Boolean(response.accepted),
+      remember: response.remember !== false,
+    };
+  } catch (error) {
+    logger.error('requestConsentFromContent', 'consent', 'Consent request failed', { error });
+    return { accepted: false };
+  }
+}
+
+async function applyMaskPersistence(origin, masks) {
+  if (!origin) {
+    return masks;
+  }
+  try {
+    return await saveOriginMasks(origin, masks);
+  } catch (error) {
+    logger.error('applyMaskPersistence', 'prefs', 'Failed to persist redact masks', { error });
+    return masks;
+  }
+}
+
+async function applyGlobalPrefs(patch) {
+  try {
+    const prefs = await updateGlobalPrefs(patch);
+    state.hudEnabled = prefs.hudEnabled;
+    state.redactEnabled = prefs.redactEnabled;
+  } catch (error) {
+    logger.error('applyGlobalPrefs', 'prefs', 'Failed to persist popup preferences', { error });
+  }
+  return getPopupState();
+}
+
 async function pushEvent(event) {
   state.events.push(event);
   if (state.events.length > EVENT_BUFFER_LIMIT) {
@@ -84,14 +159,54 @@ async function startCapture(prefs = {}) {
     logger.warn('startCapture', 'lifecycle', 'Capture already active');
     return getPopupState();
   }
+  await ensurePrefsLoaded();
   const tab = await getActiveTab();
   if (!tab || tab.id === undefined) {
     throw new Error('No active tab available');
   }
   state.tabId = tab.id;
   state.tabTitle = tab.title ?? '';
+  const origin = resolveOrigin(tab.url ?? '');
+  state.origin = origin;
   state.hudEnabled = prefs.hudEnabled ?? state.hudEnabled;
   state.redactEnabled = prefs.redactEnabled ?? state.redactEnabled;
+  if ('hudEnabled' in prefs || 'redactEnabled' in prefs) {
+    await applyGlobalPrefs({
+      hudEnabled: state.hudEnabled,
+      redactEnabled: state.redactEnabled,
+    });
+  }
+  let storedMasks = [];
+  let consentGranted = false;
+  if (origin) {
+    try {
+      const originPrefs = await getOriginPrefs(origin);
+      storedMasks = originPrefs.masks;
+      consentGranted = originPrefs.consent.granted;
+    } catch (error) {
+      logger.error('startCapture', 'prefs', 'Failed to load origin preferences', { error });
+    }
+  }
+  state.masks = storedMasks;
+  if (!consentGranted) {
+    const consent = await requestConsentFromContent(tab.id, {
+      origin,
+      tabTitle: state.tabTitle,
+    });
+    if (!consent.accepted) {
+      logger.warn('startCapture', 'consent', 'User declined capture consent', {
+        method: 'NONE',
+      });
+      state.tabId = null;
+      state.tabTitle = '';
+      state.origin = null;
+      state.masks = [];
+      return getPopupState();
+    }
+    if (consent.remember && origin) {
+      await setOriginConsent(origin, true);
+    }
+  }
   await ensureOffscreenDocument();
   await sendToContent(tab.id, {
     type: 'CONTENT_START',
@@ -121,6 +236,7 @@ async function stopCapture() {
   state.active = false;
   state.tabId = null;
   state.tabTitle = '';
+  state.origin = null;
   await chrome.runtime.sendMessage({ type: 'OFFSCREEN_STOP' });
   if (tabId !== null && tabId !== undefined) {
     try {
@@ -163,6 +279,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     switch (message?.type) {
       case 'POPUP_GET_STATE':
+        await ensurePrefsLoaded();
         sendResponse(getPopupState());
         return;
       case 'POPUP_START_CAPTURE':
@@ -172,8 +289,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse(await stopCapture());
         return;
       case 'POPUP_UPDATE_PREFS':
-        state.hudEnabled = message.payload?.hudEnabled ?? state.hudEnabled;
-        state.redactEnabled = message.payload?.redactEnabled ?? state.redactEnabled;
+        await ensurePrefsLoaded();
+        state.hudEnabled =
+          message.payload?.hudEnabled ?? state.hudEnabled;
+        state.redactEnabled =
+          message.payload?.redactEnabled ?? state.redactEnabled;
+        await applyGlobalPrefs({
+          hudEnabled: state.hudEnabled,
+          redactEnabled: state.redactEnabled,
+        });
         if (state.active && state.tabId !== null) {
           await chrome.tabs.sendMessage(state.tabId, {
             type: 'CONTENT_UPDATE_PREFS',
@@ -205,6 +329,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       case 'CONTENT_UPDATE_REDACTIONS':
         state.masks = sanitizeMasks(message.payload?.masks);
+        state.masks = await applyMaskPersistence(state.origin, state.masks);
         if (state.active) {
           await chrome.runtime.sendMessage({
             type: 'OFFSCREEN_UPDATE_MASKS',
