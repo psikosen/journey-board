@@ -7,6 +7,12 @@ import {
   setOriginConsent,
   updateGlobalPrefs,
 } from './lib/preferences.js';
+import { EventFusion } from './lib/eventFusion.js';
+import { ScribeLLM } from './lib/scribe.js';
+import { PrefixTreeMiner } from './lib/processMiner.js';
+import { buildMarkdown, buildYaml, buildBpmn, hashProcess } from './lib/sopBuilder.js';
+import { CorpusBuilder, kmeans, buildEntityActionGraph, scoreAutomation } from './lib/domainDiscovery.js';
+import { ZipExporter } from './lib/exporter.js';
 
 installEgressGuard(globalThis);
 
@@ -24,7 +30,36 @@ const state = {
   observations: [],
   origin: null,
   prefsLoaded: false,
+  fusion: new EventFusion({ windowMs: 2500 }),
+  fusedEvents: [],
+  fusedIndex: new Map(),
+  scribe: new ScribeLLM({ chunkSize: 80 }),
+  notes: '',
+  miner: new PrefixTreeMiner({ minSupport: 2, minLength: 2 }),
+  trace: [],
+  traces: [],
+  corpus: new CorpusBuilder(),
+  ocrDocuments: [],
+  automation: [],
+  processes: [],
 };
+
+function resetSessionState() {
+  state.events = [];
+  state.observations = [];
+  state.fusion = new EventFusion({ windowMs: 2500 });
+  state.fusedEvents = [];
+  state.fusedIndex = new Map();
+  state.scribe = new ScribeLLM({ chunkSize: 80 });
+  state.notes = '';
+  state.miner = new PrefixTreeMiner({ minSupport: 2, minLength: 2 });
+  state.trace = [];
+  state.traces = [];
+  state.corpus = new CorpusBuilder();
+  state.ocrDocuments = [];
+  state.automation = [];
+  state.processes = [];
+}
 
 async function ensurePrefsLoaded() {
   if (state.prefsLoaded) {
@@ -127,19 +162,23 @@ async function applyGlobalPrefs(patch) {
 }
 
 async function pushEvent(event) {
-  state.events.push(event);
+  const normalized = { ...event, t: normalizeTimestamp(event.t) };
+  state.events.push(normalized);
   if (state.events.length > EVENT_BUFFER_LIMIT) {
     state.events.splice(0, state.events.length - EVENT_BUFFER_LIMIT);
   }
   await chrome.storage.session.set({ events: state.events });
+  await recordEvent(normalized);
 }
 
 async function pushObservation(observation) {
-  state.observations.push(observation);
+  const normalized = { ...observation, t: normalizeTimestamp(observation.t) };
+  state.observations.push(normalized);
   if (state.observations.length > EVENT_BUFFER_LIMIT) {
     state.observations.splice(0, state.observations.length - EVENT_BUFFER_LIMIT);
   }
   await chrome.storage.session.set({ observations: state.observations });
+  await recordEvent(normalized);
 }
 
 async function sendToContent(tabId, message) {
@@ -176,6 +215,7 @@ async function startCapture(prefs = {}) {
       redactEnabled: state.redactEnabled,
     });
   }
+  resetSessionState();
   let storedMasks = [];
   let consentGranted = false;
   if (origin) {
@@ -246,6 +286,9 @@ async function stopCapture() {
     }
   }
   await teardownOffscreenDocument();
+  finalizeTrace();
+  updateDomainArtifacts();
+  await persistSession();
   logger.info('stopCapture', 'lifecycle', 'Capture stopped');
   return getPopupState();
 }
@@ -265,6 +308,203 @@ function sanitizeMasks(masks) {
 function clamp(value) {
   if (typeof value !== 'number' || Number.isNaN(value)) return 0;
   return Math.min(Math.max(value, 0), 1);
+}
+
+function normalizeTimestamp(value) {
+  if (typeof value === 'number') {
+    if (value > 1e12) {
+      return Math.round(value);
+    }
+    if (value < 1e6) {
+      return Math.round(value * 1000);
+    }
+    return Math.round(value);
+  }
+  return Date.now();
+}
+
+function fusedKey(event) {
+  return [
+    event.type,
+    event.selector ?? '',
+    event.text ?? event.normalized ?? '',
+    Math.round(event.start ?? event.t ?? 0),
+  ].join('|');
+}
+
+function registerFusedEvents(now = Date.now()) {
+  const fused = state.fusion.fuse(now);
+  const additions = [];
+  for (const event of fused) {
+    const key = fusedKey(event);
+    if (!state.fusedIndex.has(key)) {
+      state.fusedIndex.set(key, event);
+      state.fusedEvents.push(event);
+      additions.push(event);
+    } else {
+      const existing = state.fusedIndex.get(key);
+      existing.end = Math.max(existing.end ?? existing.start ?? 0, event.end ?? event.start ?? 0);
+      existing.count = Math.max(existing.count ?? 1, event.count ?? 1);
+    }
+  }
+  if (additions.length) {
+    state.fusedEvents.sort((a, b) => (a.start ?? 0) - (b.start ?? 0));
+  }
+  return additions;
+}
+
+function describeEvent(event) {
+  switch (event.type) {
+    case 'click':
+      return `click:${event.text ?? event.selector ?? 'element'}`;
+    case 'input':
+      return `input:${event.text ?? event.selector ?? 'field'}`;
+    case 'route':
+      return `route:${event.route ?? 'unknown'}`;
+    case 'ocr':
+      return `ocr:${event.text?.slice(0, 24) ?? 'text'}`;
+    case 'observation':
+      return `frame:${event.signals?.motion?.avg?.toFixed?.(2) ?? event.signals?.motion ?? 0}`;
+    default:
+      return event.type ?? 'event';
+  }
+}
+
+function updateTrace(newEvents) {
+  for (const event of newEvents) {
+    if (event.type === 'route' && state.trace.length) {
+      finalizeTrace();
+    }
+    const label = describeEvent(event);
+    state.trace.push({
+      label,
+      start: event.start ?? event.t ?? Date.now(),
+      end: event.end ?? event.start ?? event.t ?? Date.now(),
+    });
+  }
+}
+
+function finalizeTrace() {
+  if (!state.trace.length) {
+    return;
+  }
+  const steps = state.trace.map((entry) => entry.label);
+  const duration = state.trace.reduce(
+    (total, entry) => total + Math.max(0, (entry.end ?? entry.start) - (entry.start ?? 0)),
+    0,
+  );
+  state.traces.push({ steps, duration });
+  state.miner.ingest(steps, duration);
+  state.trace = [];
+}
+
+function updateScribe(newEvents) {
+  if (!newEvents.length) {
+    return;
+  }
+  state.scribe.addEvents(newEvents);
+  state.notes = state.scribe.summarize();
+}
+
+function addEventDocuments(events) {
+  for (const event of events) {
+    if (!event.text) continue;
+    const id = `${event.type}:${Math.round(event.start ?? event.t ?? Date.now())}:${state.fusedEvents.length}`;
+    state.corpus.addDocument(id, event.text, { type: event.type });
+    state.ocrDocuments.push({ text: event.text, type: event.type });
+  }
+}
+
+function updateDomainArtifacts() {
+  const matrix = state.corpus.tfidf();
+  const vectors = Array.from(matrix.entries()).map(([id, weights]) => ({ id, weights }));
+  state.clusters = vectors.length ? kmeans(vectors, Math.min(4, vectors.length)) : [];
+  const graph = buildEntityActionGraph(
+    state.ocrDocuments.map((entry) => ({ type: entry.type ?? 'ocr', text: entry.text })),
+  );
+  const processes = state.miner.extractProcesses();
+  state.processes = processes;
+  state.automation = scoreAutomation(processes, graph).sort((a, b) => b.score - a.score);
+}
+
+async function persistSession() {
+  await chrome.storage.session.set({
+    events: state.events,
+    observations: state.observations,
+    fusedEvents: state.fusedEvents,
+    scribe: state.notes,
+    processes: state.processes,
+    automation: state.automation,
+  });
+}
+
+async function recordEvent(event) {
+  state.fusion.ingest(event);
+  const newEvents = registerFusedEvents(event.t ?? Date.now());
+  if (newEvents.length) {
+    updateTrace(newEvents);
+    updateScribe(newEvents);
+    addEventDocuments(newEvents);
+    updateDomainArtifacts();
+  }
+  await persistSession();
+}
+
+async function handleOcrResults(payload) {
+  if (!Array.isArray(payload?.results)) {
+    return;
+  }
+  for (const result of payload.results) {
+    await pushEvent({
+      type: 'ocr',
+      text: result.text,
+      normalized: result.normalized,
+      region: result.region,
+      confidence: result.confidence ?? null,
+      t: normalizeTimestamp(result.t),
+      source: 'ocr',
+    });
+  }
+}
+
+function buildProcessDefinition(process) {
+  if (!process) {
+    return null;
+  }
+  return {
+    id: `process-${hashProcess(process)}`,
+    name: state.tabTitle ? `Captured Workflow — ${state.tabTitle}` : 'Captured Workflow',
+    steps: process.steps.map((step, index) => ({
+      title: step,
+      description: `Automatically observed step ${index + 1}.`,
+      notes: `Support: ${process.support}. Average duration: ${Math.round(process.averageDuration ?? 0)} ms.`,
+      actors: [],
+      inputs: [],
+      outputs: [],
+      systems: [],
+    })),
+  };
+}
+
+async function buildExportBundle() {
+  const exporter = new ZipExporter();
+  const primaryProcess = state.processes[0] ?? null;
+  const processDefinition = buildProcessDefinition(primaryProcess);
+  if (processDefinition) {
+    exporter.addFile('sop.md', buildMarkdown(processDefinition));
+    exporter.addFile('sop.yaml', buildYaml(processDefinition));
+    exporter.addFile('sop.bpmn.xml', buildBpmn(processDefinition));
+  }
+  exporter.addFile('notes.txt', state.notes || 'No session notes generated yet.');
+  exporter.addFile('session.json', {
+    tabTitle: state.tabTitle,
+    events: state.events,
+    observations: state.observations,
+    fusedEvents: state.fusedEvents,
+    processes: state.processes,
+    automation: state.automation,
+  });
+  return exporter.finalize({ type: 'base64' });
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -288,6 +528,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case 'POPUP_STOP_CAPTURE':
         sendResponse(await stopCapture());
         return;
+      case 'POPUP_EXPORT_SNAPSHOT': {
+        updateDomainArtifacts();
+        await persistSession();
+        const archive = await buildExportBundle();
+        sendResponse({ ok: true, archive });
+        return;
+      }
       case 'POPUP_UPDATE_PREFS':
         await ensurePrefsLoaded();
         state.hudEnabled =
@@ -344,6 +591,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       case 'OFFSCREEN_OBSERVATION':
         await pushObservation(message.payload);
+        sendResponse({ ok: true });
+        return;
+      case 'OFFSCREEN_OCR_RESULTS':
+        await handleOcrResults(message.payload);
         sendResponse({ ok: true });
         return;
       default:
