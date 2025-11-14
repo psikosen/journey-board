@@ -11,43 +11,43 @@
   - [x] STORY-1.1 Consent flow and persistent capture banner
   - [x] STORY-1.2 Redaction overlay with blur/mask persistence
   - [x] STORY-1.3 Adaptive frame sampler with performance guardrails
-- [ ] **EPIC-2: Vision & OCR**
-  - [ ] STORY-2.1 Integrate quantized ViT/CLIP vision classifier
-  - [ ] STORY-2.2 Tesseract.js regional OCR with de-duplication
-- [ ] **EPIC-3: Event Fusion**
-  - [ ] STORY-3.1 Event schema implementation and de-duplication window
-- [ ] **EPIC-4: Scribe LLM**
-  - [ ] STORY-4.1 WebLLM integration for streaming session notes
-- [ ] **EPIC-5: Process Miner**
-  - [ ] STORY-5.1 Prefix-tree miner with support/duration analytics
-- [ ] **EPIC-6: SOP Builder & Export**
-  - [ ] STORY-6.1 SOP Markdown/YAML generator and editor workflow
-  - [ ] STORY-6.2 BPMN 2.0 export (post-MVP)
-- [ ] **EPIC-7: UX**
-  - [ ] STORY-7.1 HUD, Events Pane, and Processes Pane implementation
-- [ ] **EPIC-8: Domain Discovery**
-  - [ ] STORY-8.1 OCR corpus and TF-IDF term extraction
-  - [ ] STORY-8.2 Page clustering and labeling pipeline
-  - [ ] STORY-8.3 Entity-action graph extraction
-  - [ ] STORY-8.4 Automation scoring engine and backlog export
+- [x] **EPIC-2: Vision & OCR**
+  - [x] STORY-2.1 Integrate quantized ViT/CLIP vision classifier
+  - [x] STORY-2.2 Tesseract.js regional OCR with de-duplication
+- [x] **EPIC-3: Event Fusion**
+  - [x] STORY-3.1 Event schema implementation and de-duplication window
+- [x] **EPIC-4: Scribe LLM**
+  - [x] STORY-4.1 WebLLM integration for streaming session notes
+- [x] **EPIC-5: Process Miner**
+  - [x] STORY-5.1 Prefix-tree miner with support/duration analytics
+- [x] **EPIC-6: SOP Builder & Export**
+  - [x] STORY-6.1 SOP Markdown/YAML generator and editor workflow
+  - [x] STORY-6.2 BPMN 2.0 export (post-MVP)
+- [x] **EPIC-7: UX**
+  - [x] STORY-7.1 HUD, Events Pane, and Processes Pane implementation
+- [x] **EPIC-8: Domain Discovery**
+  - [x] STORY-8.1 OCR corpus and TF-IDF term extraction
+  - [x] STORY-8.2 Page clustering and labeling pipeline
+  - [x] STORY-8.3 Entity-action graph extraction
+  - [x] STORY-8.4 Automation scoring engine and backlog export
 - [ ] **EPIC-A: Extension Shell**
   - [x] A1 MV3 manifest, popup, service worker bootstrap, and capture banner
   - [x] A2 Offscreen document lifecycle management
   - [x] A3 Egress guardrails (CSP, wrappers, tests)
 - [ ] **EPIC-B: Capture & Signals**
   - [x] B1 Tab capture, sampler, and redaction overlay tooling
-  - [ ] B2 Tesseract.js integration with language pack management
-  - [ ] B3 ViT-tiny inference via Transformers.js/ONNX Runtime Web
-  - [ ] B4 Content-script DOM hooks and safe network logging
-- [ ] **EPIC-C: Mining & Outputs**
-  - [ ] C1 TF-IDF corpus and page clustering storage
-  - [ ] C2 Event fusion and IndexedDB JSONL persistence
-  - [ ] C3 Prefix-tree miner and candidate process surfacing
-  - [ ] C4 Scribe summarizer and SOP generator wiring
-  - [ ] C5 Automation scoring and backlog JSON export
-  - [ ] C6 ZIP export with hash manifest
-  - [ ] C7 Export insights and logs packaging
-- [ ] **EPIC-D: QA & Hardening**
-  - [ ] D1 End-to-end tests across demo sites with redaction verification
-  - [ ] D2 Performance profiling with WebGPU/WASM fallbacks
-  - [ ] D3 Blocklist handling and failure UX polish
+  - [x] B2 Tesseract.js integration with language pack management
+  - [x] B3 ViT-tiny inference via Transformers.js/ONNX Runtime Web
+  - [x] B4 Content-script DOM hooks and safe network logging
+- [x] **EPIC-C: Mining & Outputs**
+  - [x] C1 TF-IDF corpus and page clustering storage
+  - [x] C2 Event fusion and IndexedDB JSONL persistence
+  - [x] C3 Prefix-tree miner and candidate process surfacing
+  - [x] C4 Scribe summarizer and SOP generator wiring
+  - [x] C5 Automation scoring and backlog JSON export
+  - [x] C6 ZIP export with hash manifest
+  - [x] C7 Export insights and logs packaging
+- [x] **EPIC-D: QA & Hardening**
+  - [x] D1 End-to-end tests across demo sites with redaction verification
+  - [x] D2 Performance profiling with WebGPU/WASM fallbacks
+  - [x] D3 Blocklist handling and failure UX polish

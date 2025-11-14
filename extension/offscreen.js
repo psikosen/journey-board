@@ -1,10 +1,14 @@
 import { AdaptiveFrameScheduler } from './lib/adaptiveCadence.js';
 import { createLogger } from './lib/logger.js';
 import { installEgressGuard } from './lib/egressGuard.js';
+import { VisionClassifier } from './lib/visionClassifier.js';
+import { OcrEngine } from './lib/ocrEngine.js';
 
 installEgressGuard(globalThis);
 
 const logger = createLogger('extension/offscreen.js', 'Offscreen');
+const visionClassifier = new VisionClassifier();
+const ocrEngine = new OcrEngine({ dedupeWindowMs: 45000 });
 
 const state = {
   active: false,
@@ -43,7 +47,7 @@ async function startCapture(payload) {
     state.ctx = state.canvas.getContext('2d');
     state.masks = sanitizeMasks(payload?.masks);
     state.frameId = 0;
-    state.lastFrame = null;
+    clearAnalyzers();
     state.active = true;
     resetScheduler();
     scheduleNextSample(0);
@@ -82,13 +86,18 @@ async function stopCapture() {
   }
   state.canvas = null;
   state.ctx = null;
-  state.lastFrame = null;
+  clearAnalyzers();
   resetScheduler();
+  await ocrEngine.dispose();
   logger.info('stopCapture', 'lifecycle', 'Offscreen capture stopped');
 }
 
 function resetScheduler() {
   state.scheduler = new AdaptiveFrameScheduler();
+}
+
+function clearAnalyzers() {
+  state.lastFrame = null;
 }
 
 function sanitizeMasks(masks) {
@@ -112,6 +121,81 @@ function scheduleNextSample(delay) {
   if (!state.active) return;
   const interval = Math.max(0, delay ?? state.scheduler.currentInterval());
   state.sampleTimer = setTimeout(sampleFrame, interval);
+}
+
+function maskOverlaps(region) {
+  for (const mask of state.masks) {
+    const overlapX = Math.max(0, Math.min(region.x + region.width, mask.x + mask.width) - Math.max(region.x, mask.x));
+    const overlapY = Math.max(0, Math.min(region.y + region.height, mask.y + mask.height) - Math.max(region.y, mask.y));
+    if (overlapX * overlapY > 0.6 * region.width * region.height) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function detectRegions(imageData) {
+  const { width, height, data } = imageData;
+  const regions = [];
+  const grid = 4;
+  const tileWidth = Math.max(1, Math.floor(width / grid));
+  const tileHeight = Math.max(1, Math.floor(height / grid));
+  for (let gy = 0; gy < grid; gy += 1) {
+    for (let gx = 0; gx < grid; gx += 1) {
+      const startX = gx * tileWidth;
+      const startY = gy * tileHeight;
+      const regionWidth = gx === grid - 1 ? width - startX : tileWidth;
+      const regionHeight = gy === grid - 1 ? height - startY : tileHeight;
+      const stats = analyzeRegion(data, width, startX, startY, regionWidth, regionHeight);
+      if (stats.contrast < 18 || stats.texture < 12) continue;
+      const normalized = {
+        x: startX / width,
+        y: startY / height,
+        width: regionWidth / width,
+        height: regionHeight / height,
+        score: stats.contrast + stats.texture,
+      };
+      if (!maskOverlaps(normalized)) {
+        regions.push(normalized);
+      }
+    }
+  }
+  regions.sort((a, b) => b.score - a.score);
+  return regions.slice(0, 6);
+}
+
+function analyzeRegion(data, width, startX, startY, regionWidth, regionHeight) {
+  let contrast = 0;
+  let texture = 0;
+  const stride = width * 4;
+  for (let y = 0; y < regionHeight; y += 1) {
+    for (let x = 0; x < regionWidth; x += 1) {
+      const index = (startY + y) * stride + (startX + x) * 4;
+      const r = data[index];
+      const g = data[index + 1];
+      const b = data[index + 2];
+      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      if (x + 1 < regionWidth) {
+        const right = (startY + y) * stride + (startX + x + 1) * 4;
+        const diff = Math.abs(luma - (0.2126 * data[right] + 0.7152 * data[right + 1] + 0.0722 * data[right + 2]));
+        contrast += diff;
+      }
+      if (y + 1 < regionHeight) {
+        const bottom = (startY + y + 1) * stride + (startX + x) * 4;
+        const diff = Math.abs(luma - (0.2126 * data[bottom] + 0.7152 * data[bottom + 1] + 0.0722 * data[bottom + 2]));
+        contrast += diff;
+      }
+      const diff = Math.max(r, g, b) - Math.min(r, g, b);
+      if (diff > 60) {
+        texture += 1;
+      }
+    }
+  }
+  const area = regionWidth * regionHeight || 1;
+  return {
+    contrast: contrast / area,
+    texture: (texture / area) * 100,
+  };
 }
 
 function applyRedactions() {
@@ -158,6 +242,7 @@ async function sampleFrame() {
     const delta = calculateDelta(current, state.lastFrame);
     state.lastFrame = new Uint8ClampedArray(current);
     const interval = state.scheduler.registerDelta(delta);
+    const vision = visionClassifier.classify(imageData);
     const observation = {
       t: Date.now() / 1000,
       frameId: state.frameId++,
@@ -171,8 +256,22 @@ async function sampleFrame() {
       signals: {
         motion: delta,
       },
+      vision,
     };
     await chrome.runtime.sendMessage({ type: 'OFFSCREEN_OBSERVATION', payload: observation });
+    const regions = detectRegions(imageData);
+    if (regions.length) {
+      const results = await ocrEngine.recognizeRegions(imageData, regions);
+      if (results.length) {
+        await chrome.runtime.sendMessage({
+          type: 'OFFSCREEN_OCR_RESULTS',
+          payload: {
+            frameId: observation.frameId,
+            results: results.map((result) => ({ ...result, t: observation.t })),
+          },
+        });
+      }
+    }
     scheduleNextSample(interval);
   } catch (error) {
     logger.error('sampleFrame', 'capture', 'Failed to process frame', { error });
