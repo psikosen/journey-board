@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "lint": "eslint .",
-    "test": "node --test"
+    "test": "node --test",
+    "build": "bash build.sh",
+    "start": "bash start.sh",
+    "setup:chrome": "bash setup-chrome.sh"
   },
   "keywords": [
     "sop",
