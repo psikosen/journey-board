@@ -22,6 +22,7 @@ The detailed architecture, data schemas, runtime considerations, and roadmap are
 1. Review the [architecture blueprint](project-manager/architecture.md) for component responsibilities and performance budgets.
 2. Use [`task.md`](task.md) to track progress across epics and stories as implementation begins.
 3. Scaffold the frontend stack (Vite + TypeScript) with WebLLM and Transformers.js integrations to initiate EPIC-1 through EPIC-3.
+4. Run `./build.sh` (or `npm run build`) to verify every epic remains delivered, reinstall dependencies, lint/test, regenerate icons, and package the extension artifact inside `dist/`.
 
 ## Repository Structure
 ```
@@ -59,4 +60,16 @@ The extension enforces zero egress through CSP hardening and runtime guards that
 
 ## Reconstructing Binary Assets
 
-Binary artifacts (such as the extension icons) are intentionally excluded from version control. Run `./build.sh` from the repository root to regenerate the required PNGs inside `extension/icons/` before loading the extension.
+Binary artifacts (such as the extension icons) are intentionally excluded from version control. The build pipeline regenerates them automatically, but you can also invoke `./build.sh` directly to emit the required PNGs inside `extension/icons/` before loading the extension.
+
+## Automation Scripts
+
+Three shell helpers keep local workflows predictable and observable:
+
+| Script | Purpose |
+| --- | --- |
+| `./build.sh` | Validates that every task in `task.md` is checked off, runs `npm ci`, executes lint/tests, rebuilds icons, and packages the extension into `dist/extension.zip`. |
+| `./start.sh` | Orchestrates the build (unless `--skip-build` is passed) and optionally launches Chrome via `./setup-chrome.sh`. |
+| `./setup-chrome.sh` | Detects a Chrome/Chromium binary, prepares an isolated profile under `.chrome-profiles/`, and (with `--auto-launch`) starts the browser with the unpacked extension preloaded. |
+
+Each script emits structured JSON logs plus a human-readable line so CI pipelines and humans can trace progress quickly.
